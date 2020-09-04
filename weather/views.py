@@ -1,14 +1,34 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from .models import City
 import requests
 from .forms import CityForm
 # Create your views here.
 def index(request):
     url = 'https://api.openweathermap.org/data/2.5/weather?q={}&units=metric&appid=32b66fcccb72a0ec9c7bea43576cbbd3'
+    err_msg = ''
+    message = ''
+    message_class = ''
     if request.method == 'POST':
         forms = CityForm(request.POST)
-        forms.save()
 
+        if forms.is_valid():
+            new_city = forms.cleaned_data['name'].capitalize()
+            existing_city_count = City.objects.filter(name = new_city).count()
+            if existing_city_count == 0:
+                r = requests.get(url.format(new_city)).json()
+                if r['cod'] == 200:
+                    forms.save()
+                else:
+                    err_msg = 'Invalid City'    
+                if existing_city_count > 0:
+                    err_msg = 'City already exists!'
+
+    if err_msg:
+        message = err_msg
+        message_class = 'is-danger'
+    else:
+        message = 'City added successfully'
+        message_class = 'is-success'
     froms = CityForm()
     cities = City.objects.all()
     weather_data = []
@@ -26,5 +46,12 @@ def index(request):
     context = { 
         'weather_data' : weather_data,
         'form' : froms,
+        'message':message,
+        'message_class':message_class,
                 }
     return render(request, 'weather/index.html', context)
+
+
+def delete_city(request, city_name):
+    City.objects.get(name = city_name).delete()
+    return redirect('home')
